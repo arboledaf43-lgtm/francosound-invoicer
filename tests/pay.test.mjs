@@ -82,3 +82,12 @@ test('Housecall Pro lines match invoice format', () => {
   assert.match(block, /invoice total should be \$1,500\.00/);
   assert.match(block, /Do not send the invoice — stop and show me before submitting\.$/);
 });
+
+test('lunch is only subtracted when entered', () => {
+  const noLunch = computeDay(day('12:00', '23:00', 0), { dayRate: 600, otAfter: 10, dtAfter: 12 });
+  assert.equal(noLunch.worked, 11);
+  assert.equal(noLunch.ot, 1);
+  assert.equal(noLunch.total, 690);
+  const withLunch = computeDay(day('12:00', '23:00', 1), { dayRate: 600, otAfter: 10, dtAfter: 12 });
+  assert.deepEqual([withLunch.span, withLunch.lunch, withLunch.worked, withLunch.total], [11, 1, 10, 600]);
+});

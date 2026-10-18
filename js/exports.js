@@ -55,11 +55,11 @@ export async function buildPdf({ event, client, rate, totals, settings }) {
   y = 96;
 
   // Client and event blocks
-  const left = [client.company, client.contactName, client.email, client.phone, ...(client.address || '').split('\n')].filter(Boolean);
+  const left = [client.company, client.contactName].filter(Boolean);
   const rateLine = `${money(rate.dayRate)}/day (${money(rate.dayRate / rate.otAfter)}/hr) · OT after ${fmtHrs(rate.otAfter)}h${rate.dtAfter ? ` · DT after ${fmtHrs(rate.dtAfter)}h` : ''}`;
   const right = [
-    ['Job #', event.jobNumber || '—'], ['Event', event.name], ['Position', event.position], ['Rate', rateLine + (rate.overridden ? ' (event rate)' : '')],
-    ['Status', event.status === 'paid' ? `Paid ${mmddyy(event.paidDate)}` : event.status === 'invoiced' ? `Invoiced #${event.invoiceNumber || ''} ${mmddyy(event.invoiceDate)}` : 'Not invoiced'],
+    ...(event.jobNumber ? [['Job #', event.jobNumber]] : []),
+    ['Event', event.name], ['Position', event.position], ['Rate', rateLine + (rate.overridden ? ' (event rate)' : '')],
   ];
   font(8, 'bold', 120); text('BILL TO', M, y); text('EVENT', 300, y);
   y += 14;

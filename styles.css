@@ -92,8 +92,6 @@ b { font-weight: 600; }
   border: 1px solid var(--line-2); color: #ccc; white-space: nowrap;
 }
 .pill .ic { width: 13px; height: 13px; }
-.pill.inv { border-color: var(--warn); color: var(--warn); }
-.pill.paid { border-color: var(--ok); color: var(--ok); }
 
 .banner {
   display: flex; align-items: center; gap: 10px; text-decoration: none;
@@ -108,10 +106,6 @@ b { font-weight: 600; }
 .total-card { background: var(--text); color: var(--bg); border-radius: var(--radius); padding: 14px 16px; }
 .total-card .big { font-size: 34px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; margin: 4px 0 2px; }
 .total-card .dim { color: #555; margin-top: 2px; }
-.status-btn { border: 0; background: transparent; padding: 0; cursor: pointer; }
-.total-card .pill { border-color: #999; color: #222; }
-.total-card .pill.inv { border-color: #9a6b00; color: #7a5200; }
-.total-card .pill.paid { border-color: #2f7a43; color: #1f5a31; }
 
 /* buttons */
 .btn {
@@ -162,7 +156,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--text); }
 .chip .ic { width: 16px; height: 16px; }
 .chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
 .chip input[type=radio] { position: absolute; opacity: 0; pointer-events: none; }
-.seg .chip { flex: 1; justify-content: center; }
 .chips .chip-input { width: 84px !important; min-height: 46px !important; text-align: center; }
 .chips .chip-input.on { border-color: var(--text); }
 

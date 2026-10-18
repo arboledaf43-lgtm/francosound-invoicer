@@ -1,6 +1,6 @@
 // Offline support: serve from cache, refresh in the background (stale-while-revalidate).
 // Bump VERSION when you deploy so old caches are cleaned up.
-const VERSION = 'fsi-v1';
+const VERSION = 'fsi-v2';
 const SHELL = [
   './', './index.html', './styles.css', './manifest.webmanifest',
   './js/app.js', './js/db.js', './js/pay.js', './js/exports.js',

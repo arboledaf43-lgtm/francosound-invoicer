@@ -57,7 +57,7 @@ export function computeDay(day = {}, rate) {
   const dtAfter = rate.dtAfter != null && +rate.dtAfter > otAfter ? +rate.dtAfter : null;
   const hourly = otAfter > 0 ? dayRate / otAfter : 0;
   const out = {
-    complete: false, overnight: false, worked: 0, ot: 0, dt: 0,
+    complete: false, overnight: false, span: 0, lunch: 0, worked: 0, ot: 0, dt: 0,
     hourly, otRate: hourly * 1.5, dtRate: hourly * 2, otAfter, dtAfter,
     dayPay: 0, otPay: 0, dtPay: 0, total: 0,
   };
@@ -65,8 +65,11 @@ export function computeDay(day = {}, rate) {
   if (a == null || b == null) return out;
   let span = b - a;
   if (span < 0) { span += 1440; out.overnight = true; }
-  const worked = Math.max(0, span - Math.round((+day.lunch || 0) * 60)) / 60;
+  const lunchMin = Math.round((+day.lunch || 0) * 60);
+  const worked = Math.max(0, span - lunchMin) / 60;
   out.complete = true;
+  out.span = span / 60;
+  out.lunch = lunchMin / 60;
   out.worked = worked;
   out.ot = Math.max(0, Math.min(worked, dtAfter ?? Infinity) - otAfter);
   out.dt = dtAfter != null ? Math.max(0, worked - dtAfter) : 0;

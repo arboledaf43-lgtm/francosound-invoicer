@@ -131,12 +131,6 @@ function dateRange(e) {
   return a === b ? a : `${a} – ${b}`;
 }
 
-function statusPill(e) {
-  if (e.status === 'paid') return `<span class="pill paid">${ic('check')} Paid${e.paidDate ? ' ' + mmddyy(e.paidDate) : ''}</span>`;
-  if (e.status === 'invoiced') return `<span class="pill inv">Invoiced${e.invoiceNumber ? ' #' + esc(e.invoiceNumber) : ''}${e.invoiceDate ? ' · ' + mmddyy(e.invoiceDate) : ''}</span>`;
-  return '<span class="pill">Draft</span>';
-}
-
 const rateText = r => `${money(r.dayRate)}/day · ${money(r.otAfter ? r.dayRate / r.otAfter : 0)}/hr · OT after ${fmtHrs(r.otAfter)}h${r.dtAfter ? ` · DT after ${fmtHrs(r.dtAfter)}h` : ''}`;
 
 // ---------- layout
@@ -208,15 +202,9 @@ function viewHome() {
   const clients = [...S.clients].sort((a, b) => (a.company || '').localeCompare(b.company || ''));
   const cards = clients.map(c => {
     const evs = S.events.filter(e => e.clientId === c.id);
-    const drafts = evs.filter(e => !e.status || e.status === 'draft');
-    const unbilled = drafts.reduce((s, e) => s + ctx(e).totals.total, 0);
-    const awaiting = evs.filter(e => e.status === 'invoiced');
     return `<a class="card client-card" href="#/client/${c.id}" data-search="${esc(`${c.company} ${c.contactName || ''}`.toLowerCase())}">
       <div class="row-b"><b>${esc(c.company)}</b><span>${money(c.dayRate)}/day</span></div>
       <div class="muted">OT after ${fmtHrs(c.otAfter)}h${c.dtAfter ? ` · DT after ${fmtHrs(c.dtAfter)}h` : ''} · ${plural(evs.length, 'event')}</div>
-      ${drafts.length || awaiting.length ? `<div class="pills">
-        ${drafts.length ? `<span class="pill">${drafts.length} unbilled · ${money(unbilled)}</span>` : ''}
-        ${awaiting.length ? `<span class="pill inv">${awaiting.length} awaiting payment</span>` : ''}</div>` : ''}
     </a>`;
   }).join('');
 
@@ -233,15 +221,10 @@ function viewClient(id) {
   const c = byId(S.clients, id);
   if (!c) return go('#/');
   const evs = S.events.filter(e => e.clientId === id).sort((a, b) => eventSortKey(b).localeCompare(eventSortKey(a)));
-  const contact = [
-    c.contactName && esc(c.contactName),
-    c.email && `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>`,
-    c.phone && `<a href="tel:${esc(c.phone)}">${esc(c.phone)}</a>`,
-  ].filter(Boolean).join(' · ');
   render(
     header({ title: c.company, back: '#/', right: `<button class="icon-btn" data-act="edit-client" data-id="${id}" aria-label="Edit client">${ic('edit')}</button>` }),
     `<div class="info">
-      ${contact ? `<div>${contact}</div>` : ''}
+      ${c.contactName ? `<div>${esc(c.contactName)}</div>` : ''}
       <div class="muted">${rateText(effectiveRate(c, {}))}</div>
       ${c.notes ? `<div class="muted notes">${esc(c.notes)}</div>` : ''}
     </div>
@@ -251,7 +234,6 @@ function viewClient(id) {
       return `<a class="card" href="#/event/${e.id}">
         <div class="row-b"><b>${esc(e.name)}</b><b>${money(totals.total)}</b></div>
         <div class="muted">${e.jobNumber ? `#${esc(e.jobNumber)} · ` : ''}${esc(e.position)} · ${plural(totals.days, 'day')} · ${dateRange(e)}</div>
-        <div class="pills">${statusPill(e)}</div>
       </a>`;
     }).join('') || `<div class="empty"><h2>No events yet</h2><p class="muted">Create an event for each show or job number.</p></div>`}
     <button class="btn primary" data-act="new-event" data-id="${id}">${ic('plus')} New event</button>
@@ -269,7 +251,8 @@ async function viewEvent(id) {
   const days = totals.rows.map(({ day: d, calc }) => `<a class="card" href="#/event/${e.id}/day/${d.id}">
     <div class="row-b"><b>${weekday(d.date)} ${mmddyy(d.date)}</b><b>${calc.complete ? money(calc.total) : '—'}</b></div>
     ${calc.complete
-      ? `<div class="muted">${fmtTime(d.clockIn, S.settings.timeFormat)} → ${fmtTime(d.clockOut, S.settings.timeFormat)}${calc.overnight ? ' (+1)' : ''} · lunch ${fmtHrs(d.lunch)}h · ${fmtHrs(calc.worked)}h${calc.worked < rate.otAfter ? ' (min day)' : ''}</div>
+      ? `<div class="muted">In ${fmtTime(d.clockIn, S.settings.timeFormat)} · Lunch ${fmtHrs(d.lunch)}h · Out ${fmtTime(d.clockOut, S.settings.timeFormat)}${calc.overnight ? ' (+1)' : ''}</div>
+         <div class="muted">${fmtHrs(calc.worked)}h worked${calc.worked < rate.otAfter ? ' (min day)' : ''}</div>
          <div class="muted small">${breakdownText(calc)}</div>`
       : '<div class="muted warn">Times not entered</div>'}
     ${d.photoIds?.length ? `<div class="small meta">${ic('image')} ${plural(d.photoIds.length, 'photo')}</div>` : ''}
@@ -278,7 +261,7 @@ async function viewEvent(id) {
   render(
     header({ title: e.name, kicker: client.company, back: `#/client/${e.clientId}`, right: `<button class="icon-btn" data-act="event-menu" data-id="${id}" aria-label="Event options">${ic('dots')}</button>` }),
     `<div class="total-card">
-      <div class="row-b small"><span>${e.jobNumber ? `#${esc(e.jobNumber)} · ` : ''}${esc(e.position)} · ${plural(totals.days, 'day')}</span><button class="status-btn" data-act="event-status" data-id="${id}" aria-label="Invoice status: ${esc(e.status || 'draft')}">${statusPill(e)}</button></div>
+      <div class="row-b small"><span>${e.jobNumber ? `#${esc(e.jobNumber)} · ` : ''}${esc(e.position)} · ${plural(totals.days, 'day')}</span></div>
       <div class="big">${money(totals.total)}</div>
       <div class="small">${fmtHrs(totals.worked)}h worked · OT ${fmtHrs(totals.ot)}h · DT ${fmtHrs(totals.dt)}h</div>
       <div class="small dim">${rateText(rate)}${rate.overridden ? ' · event rate' : ''}</div>
@@ -303,7 +286,8 @@ async function viewEvent(id) {
 function calcHtml(calc, rate) {
   if (!calc.complete) return '<p class="muted">Enter clock-in and clock-out to calculate.</p>';
   return `<div class="calc-rows">
-    <div class="row-b"><span>Hours worked</span><b>${fmtHrs(calc.worked)}h${calc.overnight ? ' (past midnight)' : ''}</b></div>
+    <div class="row-b"><span>Hours worked</span><b>${fmtHrs(calc.worked)}h</b></div>
+    <div class="muted small">${fmtHrs(calc.span)}h on the clock${calc.overnight ? ' (past midnight)' : ''}${calc.lunch ? ` − ${fmtHrs(calc.lunch)}h lunch` : ''}</div>
     <div class="row-b"><span>Day rate${calc.worked < rate.otAfter ? ' (minimum)' : ` (first ${fmtHrs(rate.otAfter)}h)`}</span><span>${money(calc.dayPay)}</span></div>
     ${calc.ot > 0 ? `<div class="row-b"><span>OT ${fmtHrs(calc.ot)}h × ${money(calc.otRate)}</span><span>${money(calc.otPay)}</span></div>` : ''}
     ${calc.dt > 0 ? `<div class="row-b"><span>DT ${fmtHrs(calc.dt)}h × ${money(calc.dtRate)}</span><span>${money(calc.dtPay)}</span></div>` : ''}
@@ -325,15 +309,15 @@ function viewDay(eid, did) {
         ${field('Clock-in', `<input type="time" data-day-field="clockIn" value="${val(d.clockIn)}">`)}
         <button class="btn now" data-act="now" data-field="clockIn">${ic('clock')} Now</button>
       </div>
-      <div class="time-row">
-        ${field('Clock-out', `<input type="time" data-day-field="clockOut" value="${val(d.clockOut)}">`)}
-        <button class="btn now" data-act="now" data-field="clockOut">${ic('clock')} Now</button>
-      </div>
       <div class="field"><span>Lunch</span>
         <div class="chips">
           ${LUNCH_CHIPS.map(h => `<button class="chip ${+d.lunch === h ? 'on' : ''}" data-act="lunch" data-h="${h}">${h ? `${fmtHrs(h)}h` : 'None'}</button>`).join('')}
           <input class="chip-input ${lunchIsChip ? '' : 'on'}" type="number" inputmode="decimal" min="0" step="0.25" data-day-field="lunch" value="${lunchIsChip ? '' : val(d.lunch)}" placeholder="Other" aria-label="Other lunch length in hours">
         </div>
+      </div>
+      <div class="time-row">
+        ${field('Clock-out', `<input type="time" data-day-field="clockOut" value="${val(d.clockOut)}">`)}
+        <button class="btn now" data-act="now" data-field="clockOut">${ic('clock')} Now</button>
       </div>
     </div>
     <div class="calc" id="calc">${calcHtml(computeDay(d, rate), rate)}</div>
@@ -358,7 +342,7 @@ function viewExport(id) {
     header({ title: 'Housecall Pro guide', kicker: e.name, back: `#/event/${id}` }),
     `<div class="info">
       <div class="row-b"><span class="muted">Customer</span><span>${esc(client.company)} ${copyBtn(client.company, 'customer')}</span></div>
-      <div class="row-b"><span class="muted">Job #</span><span>${esc(e.jobNumber || '—')} ${e.jobNumber ? copyBtn(e.jobNumber, 'job number') : ''}</span></div>
+      ${e.jobNumber ? `<div class="row-b"><span class="muted">Job #</span><span>${esc(e.jobNumber)} ${copyBtn(e.jobNumber, 'job number')}</span></div>` : ''}
     </div>
     ${totals.incomplete ? `<p class="warn small">${plural(totals.incomplete, 'day')} without times ${totals.incomplete === 1 ? 'is' : 'are'} left off the invoice.</p>` : ''}
     <h2 class="section">Line items · tick as you enter them</h2>
@@ -373,10 +357,7 @@ function viewExport(id) {
     <div class="row-b grand"><span>Invoice total</span><b>${money(totals.total)}</b></div>
 
     <button class="btn primary" data-act="copy-claude" data-id="${id}">${ic('spark')} Copy for Claude in Chrome</button>
-    <div class="two">
-      <button class="btn" data-act="pdf" data-id="${id}">${ic('file')} PDF summary</button>
-      <button class="btn" data-act="event-status" data-id="${id}">${ic('receipt')} ${e.status === 'draft' || !e.status ? 'Mark invoiced' : 'Update status'}</button>
-    </div>
+    <button class="btn" data-act="pdf" data-id="${id}">${ic('file')} PDF summary</button>
     <details class="preview"><summary>Preview the Claude in Chrome instructions</summary><pre>${esc(claudeBlock({ client, event: e, lines }))}</pre></details>`,
   );
 }
@@ -391,7 +372,7 @@ async function viewSettings() {
     `<h2 class="section">Backup</h2>
     <div class="info">
       <div>${s.lastBackupAt ? `Last backup ${new Date(s.lastBackupAt).toLocaleString()}` : 'No backup yet'}</div>
-      <div class="muted small">One zip with all clients, events, photos and files. To move work from your iPhone to your PC, back up on the phone, then restore with Merge on the PC (and the other way round).</div>
+      <div class="muted small">One zip with all clients, events, photos and files. Save it to Files or iCloud Drive. If you change phones or reinstall the app, restore it here.</div>
     </div>
     <button class="btn primary" data-act="backup">${ic('download')} Back up now</button>
     <label class="btn">${ic('upload')} Restore from backup<input type="file" accept=".zip,application/zip" hidden data-restore></label>
@@ -409,7 +390,7 @@ async function viewSettings() {
     <h2 class="section">This device</h2>
     <div class="info small">
       <div>${est ? `Using ${fmtSize(est.usage || 0)} of storage.` : ''} ${persisted ? 'Storage is protected from automatic clearing.' : 'Install the app to your home screen so the browser keeps your data.'}</div>
-      <div class="muted">iPhone: open in Safari, tap Share, then Add to Home Screen. PC: in Chrome, use the install icon in the address bar.</div>
+      <div class="muted">Open the app from its home screen icon, not from Safari, so your data stays protected.</div>
     </div>`,
   );
 }
@@ -449,12 +430,7 @@ function clientForm(c = {}) {
     submit: isNew ? 'Create client' : 'Save',
     body: `
       ${field('Company name', `<input name="company" required data-msg="Enter a company name." value="${val(c.company)}" autocomplete="organization" placeholder="Clair Global">`)}
-      ${field('Contact name', `<input name="contactName" value="${val(c.contactName)}" autocomplete="name">`)}
-      <div class="two">
-        ${field('Email', `<input name="email" type="email" inputmode="email" value="${val(c.email)}" data-msg="Enter a valid email.">`)}
-        ${field('Phone', `<input name="phone" type="tel" value="${val(c.phone)}">`)}
-      </div>
-      ${field('Billing address', `<textarea name="address" rows="2">${val(c.address)}</textarea>`)}
+      ${field('Contact name (optional)', `<input name="contactName" value="${val(c.contactName)}" autocomplete="name">`)}
       <div class="three">
         ${field('Day rate ($)', `<input name="dayRate" type="number" inputmode="decimal" min="0" step="0.01" required data-msg="Enter a day rate." value="${val(c.dayRate)}" placeholder="500">`)}
         ${field('OT after (h)', `<input name="otAfter" type="number" inputmode="decimal" min="1" step="0.25" required data-msg="Enter the hours before OT starts." value="${val(c.otAfter ?? 10)}">`)}
@@ -465,8 +441,8 @@ function clientForm(c = {}) {
       if (d.dtAfter && +d.dtAfter <= +d.otAfter) throw new Error('DT after must be more hours than OT after.');
       const rec = {
         ...c, id: c.id || db.uid(), createdAt: c.createdAt || Date.now(),
-        company: d.company.trim(), contactName: d.contactName.trim(), email: d.email.trim(), phone: d.phone.trim(),
-        address: d.address.trim(), dayRate: +d.dayRate, otAfter: +d.otAfter, dtAfter: d.dtAfter ? +d.dtAfter : null, notes: d.notes.trim(),
+        company: d.company.trim(), contactName: d.contactName.trim(),
+        dayRate: +d.dayRate, otAfter: +d.otAfter, dtAfter: d.dtAfter ? +d.dtAfter : null, notes: d.notes.trim(),
       };
       await saveClient(rec);
       isNew ? go(`#/client/${rec.id}`) : rerender();
@@ -517,7 +493,7 @@ function eventForm(clientId, e = {}) {
     body: `
       ${field('Event name', `<input name="name" required data-msg="Enter an event name." value="${val(e.name)}" placeholder="Fall Tour – Chicago">`)}
       <div class="two">
-        ${field('Job number', `<input name="jobNumber" value="${val(e.jobNumber)}" inputmode="numeric" placeholder="24817">`)}
+        ${field('Job # (optional)', `<input name="jobNumber" value="${val(e.jobNumber)}" inputmode="numeric">`)}
         <div>${positionField(e.position || 'A1')}</div>
       </div>
       <label class="check"><input type="checkbox" name="ovEnabled" ${o.enabled ? 'checked' : ''}> This job pays a different rate</label>
@@ -529,7 +505,7 @@ function eventForm(clientId, e = {}) {
       ${field('Notes', `<textarea name="notes" rows="2">${val(e.notes)}</textarea>`)}`,
     onSubmit: async d => {
       const rec = {
-        days: [], fileIds: [], status: 'draft', ...e,
+        days: [], fileIds: [], ...e,
         id: e.id || db.uid(), clientId, createdAt: e.createdAt || Date.now(),
         name: d.name.trim(), jobNumber: d.jobNumber.trim(), position: await resolvePosition(d), notes: d.notes.trim(),
         override: { enabled: !!d.ovEnabled, dayRate: d.ovDayRate, otAfter: d.ovOtAfter, dtAfter: d.ovDtAfter },
@@ -543,43 +519,16 @@ function eventForm(clientId, e = {}) {
   form.ovEnabled.addEventListener('change', () => { ov.hidden = !form.ovEnabled.checked; });
 }
 
-function statusForm(e) {
-  const { form } = openSheet({
-    title: 'Invoice status',
-    body: `
-      <div class="chips seg">${['draft', 'invoiced', 'paid'].map(s => `<label class="chip ${(e.status || 'draft') === s ? 'on' : ''}"><input type="radio" name="status" value="${s}" ${(e.status || 'draft') === s ? 'checked' : ''}>${s[0].toUpperCase() + s.slice(1)}</label>`).join('')}</div>
-      <div class="two">
-        ${field('Invoice #', `<input name="invoiceNumber" value="${val(e.invoiceNumber)}" inputmode="numeric">`)}
-        ${field('Invoice date', `<input name="invoiceDate" type="date" value="${val(e.invoiceDate)}">`)}
-      </div>
-      ${field('Paid date', `<input name="paidDate" type="date" value="${val(e.paidDate)}">`)}`,
-    onSubmit: async d => {
-      Object.assign(e, { status: d.status, invoiceNumber: d.invoiceNumber.trim(), invoiceDate: d.invoiceDate, paidDate: d.paidDate });
-      if (d.status !== 'draft' && !e.invoiceDate) e.invoiceDate = todayISO();
-      if (d.status === 'paid' && !e.paidDate) e.paidDate = todayISO();
-      await saveEvent(e);
-      toast('Status saved');
-      rerender();
-    },
-  });
-  form.addEventListener('change', ev => {
-    if (ev.target.name !== 'status') return;
-    form.querySelectorAll('.seg .chip').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
-    if (ev.target.value !== 'draft' && !form.invoiceDate.value) form.invoiceDate.value = todayISO();
-    if (ev.target.value === 'paid' && !form.paidDate.value) form.paidDate.value = todayISO();
-  });
-}
-
 function duplicateForm(src) {
   const first = sortDays(src.days)[0]?.date;
   openSheet({
     title: 'Duplicate event',
     submit: 'Duplicate',
-    body: `<p class="muted small">Copies the position, rate, notes and ${plural((src.fileIds || []).length, 'file')}. Creates ${plural(src.days.length || 1, 'day')} starting on the new date. Photos and invoice status start fresh.</p>
+    body: `<p class="muted small">Copies the position, rate, notes and ${plural((src.fileIds || []).length, 'file')}. Creates ${plural(src.days.length || 1, 'day')} starting on the new date. Photos start fresh.</p>
       ${field('Event name', `<input name="name" required data-msg="Enter an event name." value="${val(src.name)}">`)}
-      ${field('Job number', `<input name="jobNumber" value="${val(src.jobNumber)}" inputmode="numeric">`, 'Change it if the new show has a new job number.')}
+      ${field('Job # (optional)', `<input name="jobNumber" value="${val(src.jobNumber)}" inputmode="numeric">`, 'Change it if the new show has a new job number.')}
       ${field('First day', `<input name="firstDate" type="date" required data-msg="Pick the first day." value="${first ? addDays(first, 364) : todayISO()}">`, first ? `Last time started ${mmddyy(first)}.` : '')}
-      <label class="check"><input type="checkbox" name="copyTimes"> Prefill clock times from last time</label>`,
+      <label class="check"><input type="checkbox" name="copyTimes"> Prefill clock times and lunch from last time</label>`,
     onSubmit: async d => {
       const fileIds = [];
       for (const fid of src.fileIds || []) {
@@ -591,11 +540,11 @@ function duplicateForm(src) {
       const days = (srcDays.length ? srcDays : [{}]).map(x => ({
         id: db.uid(), date: x.date ? addDays(x.date, off) : d.firstDate,
         clockIn: d.copyTimes ? x.clockIn || '' : '', clockOut: d.copyTimes ? x.clockOut || '' : '',
-        lunch: x.lunch ?? 1, photoIds: [], updatedAt: Date.now(),
+        lunch: d.copyTimes ? x.lunch || 0 : 0, photoIds: [], updatedAt: Date.now(),
       }));
       const rec = {
         id: db.uid(), clientId: src.clientId, createdAt: Date.now(), name: d.name.trim(), jobNumber: d.jobNumber.trim(),
-        position: src.position, override: { ...(src.override || {}) }, notes: src.notes || '', status: 'draft', days, fileIds,
+        position: src.position, override: { ...(src.override || {}) }, notes: src.notes || '', days, fileIds,
       };
       await saveEvent(rec);
       toast('Event duplicated');
@@ -689,14 +638,12 @@ const actions = {
   'new-client': () => clientForm(),
   'edit-client': el => clientForm(byId(S.clients, el.dataset.id)),
   'new-event': el => eventForm(el.dataset.id),
-  'event-status': el => statusForm(byId(S.events, el.dataset.id)),
   'event-menu': el => {
     const e = byId(S.events, el.dataset.id);
     openSheet({
       title: e.name,
       body: `<div class="menu">
         <button type="button" class="btn" data-act="edit-event" data-id="${e.id}">${ic('edit')} Edit event</button>
-        <button type="button" class="btn" data-act="event-status" data-id="${e.id}">${ic('receipt')} Invoice status</button>
         <button type="button" class="btn" data-act="dup-event" data-id="${e.id}">${ic('dup')} Duplicate for a new date</button>
         <button type="button" class="btn danger" data-act="delete-event" data-id="${e.id}">${ic('trash')} Delete event</button>
       </div>`,
@@ -721,7 +668,7 @@ const actions = {
   'add-day': async el => {
     const e = byId(S.events, el.dataset.id);
     const last = sortDays(e.days).at(-1);
-    const d = { id: db.uid(), date: last ? addDays(last.date, 1) : todayISO(), clockIn: '', clockOut: '', lunch: last?.lunch ?? 1, photoIds: [], updatedAt: Date.now() };
+    const d = { id: db.uid(), date: last ? addDays(last.date, 1) : todayISO(), clockIn: '', clockOut: '', lunch: 0, photoIds: [], updatedAt: Date.now() };
     e.days.push(d);
     await saveEvent(e);
     go(`#/event/${e.id}/day/${d.id}`);
