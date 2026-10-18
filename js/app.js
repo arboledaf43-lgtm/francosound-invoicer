@@ -45,6 +45,7 @@ const PATHS = {
   receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
   dup: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V4h12"/><path d="M14 11v6M11 14h6"/>',
   search: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
+  pin: '<path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/>',
 };
 const ic = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${PATHS[n]}</svg>`;
 
@@ -130,6 +131,8 @@ function dateRange(e) {
   const a = mmddyy(d[0].date), b = mmddyy(d.at(-1).date);
   return a === b ? a : `${a} – ${b}`;
 }
+
+const mapLink = place => `<a class="place" href="https://maps.apple.com/?q=${encodeURIComponent(place)}" target="_blank" rel="noopener">${ic('pin')} ${esc(place)}</a>`;
 
 const rateText = r => `${money(r.dayRate)}/day · ${money(r.otAfter ? r.dayRate / r.otAfter : 0)}/hr · OT after ${fmtHrs(r.otAfter)}h${r.dtAfter ? ` · DT after ${fmtHrs(r.dtAfter)}h` : ''}`;
 
@@ -234,6 +237,7 @@ function viewClient(id) {
       return `<a class="card" href="#/event/${e.id}">
         <div class="row-b"><b>${esc(e.name)}</b><b>${money(totals.total)}</b></div>
         <div class="muted">${e.jobNumber ? `#${esc(e.jobNumber)} · ` : ''}${esc(e.position)} · ${plural(totals.days, 'day')} · ${dateRange(e)}</div>
+        ${e.location ? `<div class="muted small">${esc(e.location)}</div>` : ''}
       </a>`;
     }).join('') || `<div class="empty"><h2>No events yet</h2><p class="muted">Create an event for each show or job number.</p></div>`}
     <button class="btn primary" data-act="new-event" data-id="${id}">${ic('plus')} New event</button>
@@ -266,6 +270,7 @@ async function viewEvent(id) {
       <div class="small">${fmtHrs(totals.worked)}h worked · OT ${fmtHrs(totals.ot)}h · DT ${fmtHrs(totals.dt)}h</div>
       <div class="small dim">${rateText(rate)}${rate.overridden ? ' · event rate' : ''}</div>
     </div>
+    ${e.location ? mapLink(e.location) : ''}
     ${totals.incomplete ? `<p class="warn small">${plural(totals.incomplete, 'day')} without times ${totals.incomplete === 1 ? "isn't" : "aren't"} counted yet.</p>` : ''}
     <h2 class="section">Days</h2>
     ${days || '<p class="muted">Add a day for each date you worked.</p>'}
@@ -496,6 +501,7 @@ function eventForm(clientId, e = {}) {
         ${field('Job # (optional)', `<input name="jobNumber" value="${val(e.jobNumber)}" inputmode="numeric">`)}
         <div>${positionField(e.position || 'A1')}</div>
       </div>
+      ${field('Location (optional)', `<input name="location" value="${val(e.location)}" autocomplete="off" placeholder="Venue, city">`)}
       <label class="check"><input type="checkbox" name="ovEnabled" ${o.enabled ? 'checked' : ''}> This job pays a different rate</label>
       <div class="three" data-ov ${o.enabled ? '' : 'hidden'}>
         ${field('Day rate ($)', `<input name="ovDayRate" type="number" inputmode="decimal" min="0" step="0.01" value="${val(o.dayRate)}" placeholder="${val(client.dayRate)}">`)}
@@ -507,7 +513,7 @@ function eventForm(clientId, e = {}) {
       const rec = {
         days: [], fileIds: [], ...e,
         id: e.id || db.uid(), clientId, createdAt: e.createdAt || Date.now(),
-        name: d.name.trim(), jobNumber: d.jobNumber.trim(), position: await resolvePosition(d), notes: d.notes.trim(),
+        name: d.name.trim(), jobNumber: d.jobNumber.trim(), location: d.location.trim(), position: await resolvePosition(d), notes: d.notes.trim(),
         override: { enabled: !!d.ovEnabled, dayRate: d.ovDayRate, otAfter: d.ovOtAfter, dtAfter: d.ovDtAfter },
       };
       await saveEvent(rec);
@@ -524,7 +530,7 @@ function duplicateForm(src) {
   openSheet({
     title: 'Duplicate event',
     submit: 'Duplicate',
-    body: `<p class="muted small">Copies the position, rate, notes and ${plural((src.fileIds || []).length, 'file')}. Creates ${plural(src.days.length || 1, 'day')} starting on the new date. Photos start fresh.</p>
+    body: `<p class="muted small">Copies the location, position, rate, notes and ${plural((src.fileIds || []).length, 'file')}. Creates ${plural(src.days.length || 1, 'day')} starting on the new date. Photos start fresh.</p>
       ${field('Event name', `<input name="name" required data-msg="Enter an event name." value="${val(src.name)}">`)}
       ${field('Job # (optional)', `<input name="jobNumber" value="${val(src.jobNumber)}" inputmode="numeric">`, 'Change it if the new show has a new job number.')}
       ${field('First day', `<input name="firstDate" type="date" required data-msg="Pick the first day." value="${first ? addDays(first, 364) : todayISO()}">`, first ? `Last time started ${mmddyy(first)}.` : '')}
@@ -544,7 +550,7 @@ function duplicateForm(src) {
       }));
       const rec = {
         id: db.uid(), clientId: src.clientId, createdAt: Date.now(), name: d.name.trim(), jobNumber: d.jobNumber.trim(),
-        position: src.position, override: { ...(src.override || {}) }, notes: src.notes || '', days, fileIds,
+        location: src.location || '', position: src.position, override: { ...(src.override || {}) }, notes: src.notes || '', days, fileIds,
       };
       await saveEvent(rec);
       toast('Event duplicated');
@@ -808,5 +814,9 @@ document.addEventListener('input', ev => {
   navigator.storage?.persist?.().catch(() => {});
   addEventListener('hashchange', route);
   route();
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    // When an update takes over, reload once so the new version shows right away.
+    if (navigator.serviceWorker.controller) navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
 })();

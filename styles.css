@@ -93,6 +93,9 @@ b { font-weight: 600; }
 }
 .pill .ic { width: 13px; height: 13px; }
 
+.place { display: flex; align-items: center; gap: 8px; padding: 6px 2px; color: var(--text); text-decoration: none; font-size: 15px; }
+.place .ic { width: 18px; height: 18px; color: var(--muted); }
+
 .banner {
   display: flex; align-items: center; gap: 10px; text-decoration: none;
   padding: 12px 14px; border-radius: var(--radius);

@@ -59,7 +59,7 @@ export async function buildPdf({ event, client, rate, totals, settings }) {
   const rateLine = `${money(rate.dayRate)}/day (${money(rate.dayRate / rate.otAfter)}/hr) · OT after ${fmtHrs(rate.otAfter)}h${rate.dtAfter ? ` · DT after ${fmtHrs(rate.dtAfter)}h` : ''}`;
   const right = [
     ...(event.jobNumber ? [['Job #', event.jobNumber]] : []),
-    ['Event', event.name], ['Position', event.position], ['Rate', rateLine + (rate.overridden ? ' (event rate)' : '')],
+    ['Event', event.name], ...(event.location ? [['Location', event.location]] : []), ['Position', event.position], ['Rate', rateLine + (rate.overridden ? ' (event rate)' : '')],
   ];
   font(8, 'bold', 120); text('BILL TO', M, y); text('EVENT', 300, y);
   y += 14;

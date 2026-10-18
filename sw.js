@@ -1,6 +1,6 @@
 // Offline support: serve from cache, refresh in the background (stale-while-revalidate).
 // Bump VERSION when you deploy so old caches are cleaned up.
-const VERSION = 'fsi-v2';
+const VERSION = 'fsi-v3';
 const SHELL = [
   './', './index.html', './styles.css', './manifest.webmanifest',
   './js/app.js', './js/db.js', './js/pay.js', './js/exports.js',
@@ -14,7 +14,8 @@ const LIBS = [
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
     const c = await caches.open(VERSION);
-    await c.addAll(SHELL);
+    // cache: 'reload' skips the browser's HTTP cache so an update never stores stale copies.
+    await c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })));
     await Promise.all(LIBS.map(u => c.add(u).catch(() => {})));
     await self.skipWaiting();
   })());
@@ -36,7 +37,7 @@ self.addEventListener('fetch', e => {
     const c = await caches.open(VERSION);
     const key = req.mode === 'navigate' ? './index.html' : req;
     const cached = await c.match(key, { ignoreSearch: true });
-    const fresh = fetch(req).then(res => {
+    const fresh = fetch(url.origin === location.origin ? new Request(req.url, { cache: 'no-cache' }) : req).then(res => {
       if (res.ok) c.put(key, res.clone());
       return res;
     }).catch(() => null);
